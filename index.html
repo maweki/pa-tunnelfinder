@@ -85,70 +85,84 @@
       reader.onload = (function(theFile) {
         return function(e) {
           var prison_lines = _.map(e.target.result.split('\n'), _.trim);
+          var line_count = prison_lines.length;
           var state = states.scan;
           var prison = { p: {}};
-          while (state !== states.end) {
-            if (_.isEmpty(prison_lines)) { state = states.end; continue; }
-            line = prison_lines[0];
 
-            if (state === states.scan) {
-              if (_.startsWith(line, 'Version')) { state = states.version; continue; }
-              if (line == 'BEGIN Cells') { state = states.cells; continue; }
-              if (line == 'BEGIN Tunnels') { state = states.tunnels; continue; }
-              prison_lines.shift(); continue;
-            }
+          var update = function(rem){
+            document.getElementById("prison").innerHTML = 'Progress: ' + Math.trunc(100*(1.0 - (1.0 * rem / line_count)))+'%';
+          };
 
-            if (state === states.version) {
-              prison.version = _.trim(line.substr('Version'.length));
-              prison_lines.shift();
-              state = states.scan; continue;
-            }
+          var step = function() {
+            update(prison_lines.length);
+            var count = 0;
 
-            if (state === states.cells) {
-              if (line == 'BEGIN Cells') { prison_lines.shift(); continue; }
-              if (line == 'END') { state = states.scan; continue; }
-              if (line.search(/(BrickWall)|(ConcreteWall)|(Fence)|(PerimeterWall)/) !== -1) {
-                var regex_match = line.match(/(\d+) (\d+)/);
-                var x = regex_match[1], y = regex_match[2];
-                prison.p[[x,y]] = types.nothing + types.wall;
+            while (state !== states.end) {
+              count++;
+              if (count === 1000) {_.defer(step); return; }
+              if (_.isEmpty(prison_lines)) { state = states.end; continue; }
+              line = prison_lines[0];
+
+              if (state === states.scan) {
+                if (_.startsWith(line, 'Version')) { state = states.version; continue; }
+                if (line == 'BEGIN Cells') { state = states.cells; continue; }
+                if (line == 'BEGIN Tunnels') { state = states.tunnels; continue; }
+                prison_lines.shift(); continue;
               }
-              prison_lines.shift(); continue;
-            }
 
-            if (state === states.tunnels) {
-              if (line == 'BEGIN Tunnels') { prison_lines.shift(); continue; }
-              if (line == 'END') { state = states.scan; continue; }
-              if (line.search(/Dug 1.0+/) !== -1) {
-                var regex_match = line.match(/(\d+) (\d+)/);
-                var x = regex_match[1], y = regex_match[2];
-                if (prison.p[[x,y]] === types.wall) { prison.p[[x,y]] = types.wall + types.tunnel; }
-                else { prison.p[[x,y]] = types.nothing + types.tunnel; }
+              if (state === states.version) {
+                prison.version = _.trim(line.substr('Version'.length));
+                prison_lines.shift();
+                state = states.scan; continue;
               }
-              prison_lines.shift(); continue;
-            }
-          }
-          // End
-          // clear prison div
-          var main = document.getElementById("prison"); main.innerHTML = '';
-          var leftmost = 10000;
-          var topmost = 10000;
-          _.forOwn(prison.p, function(value, key) {
-            var regex_match = key.match(/(\d+),(\d+)/);
-            var x = parseInt(regex_match[1]), y = parseInt(regex_match[2]);
-            leftmost = Math.min(leftmost, x);
-            topmost = Math.min(topmost, y);
-          });
 
-          var cls = ['', 'wall', 'tunnel', 'wall tunnel'];
-          _.forOwn(prison.p, function(value, key) {
-              var el = document.createElement("div");
+              if (state === states.cells) {
+                if (line == 'BEGIN Cells') { prison_lines.shift(); continue; }
+                if (line == 'END') { state = states.scan; continue; }
+                if (line.search(/(BrickWall)|(ConcreteWall)|(Fence)|(PerimeterWall)/) !== -1) {
+                  var regex_match = line.match(/(\d+) (\d+)/);
+                  var x = regex_match[1], y = regex_match[2];
+                  prison.p[[x,y]] = types.nothing + types.wall;
+                }
+                prison_lines.shift(); continue;
+              }
+
+              if (state === states.tunnels) {
+                if (line == 'BEGIN Tunnels') { prison_lines.shift(); continue; }
+                if (line == 'END') { state = states.scan; continue; }
+                if (line.search(/Dug 1.0+/) !== -1) {
+                  var regex_match = line.match(/(\d+) (\d+)/);
+                  var x = regex_match[1], y = regex_match[2];
+                  if (prison.p[[x,y]] === types.wall) { prison.p[[x,y]] = types.wall + types.tunnel; }
+                  else { prison.p[[x,y]] = types.nothing + types.tunnel; }
+                }
+                prison_lines.shift(); continue;
+              }
+            }
+            // End
+            // clear prison div
+            var main = document.getElementById("prison"); main.innerHTML = '';
+            var leftmost = 10000;
+            var topmost = 10000;
+            _.forOwn(prison.p, function(value, key) {
               var regex_match = key.match(/(\d+),(\d+)/);
-              var x = (parseInt(regex_match[1])-leftmost)*10, y = (parseInt(regex_match[2])-topmost)*10;
-              el.className = cls[value];
-              el.style.left = x;
-              el.style.top = y;
-              main.appendChild(el);
-          });
+              var x = parseInt(regex_match[1]), y = parseInt(regex_match[2]);
+              leftmost = Math.min(leftmost, x);
+              topmost = Math.min(topmost, y);
+            });
+
+            var cls = ['', 'wall', 'tunnel', 'wall tunnel'];
+            _.forOwn(prison.p, function(value, key) {
+                var el = document.createElement("div");
+                var regex_match = key.match(/(\d+),(\d+)/);
+                var x = (parseInt(regex_match[1])-leftmost)*10, y = (parseInt(regex_match[2])-topmost)*10;
+                el.className = cls[value];
+                el.style.left = x;
+                el.style.top = y;
+                main.appendChild(el);
+            });
+          };
+          _.defer(step);
         };
       })(f);
 
