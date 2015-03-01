@@ -87,6 +87,7 @@
           var prison_lines = _.map(e.target.result.split('\n'), _.trim);
           var line_count = prison_lines.length;
           var state = states.scan;
+          var pointer = 0;
           var prison = { p: {}};
 
           var update = function(rem){
@@ -100,35 +101,35 @@
             while (state !== states.end) {
               count++;
               if (count === 1000) {_.defer(step); return; }
-              if (_.isEmpty(prison_lines)) { state = states.end; continue; }
-              line = prison_lines[0];
+              if (pointer >= line_count) { state = states.end; continue; }
+              line = prison_lines[pointer];
 
               if (state === states.scan) {
                 if (_.startsWith(line, 'Version')) { state = states.version; continue; }
                 if (line == 'BEGIN Cells') { state = states.cells; continue; }
                 if (line == 'BEGIN Tunnels') { state = states.tunnels; continue; }
-                prison_lines.shift(); continue;
+                pointer++; continue;
               }
 
               if (state === states.version) {
                 prison.version = _.trim(line.substr('Version'.length));
-                prison_lines.shift();
+                pointer++;
                 state = states.scan; continue;
               }
 
               if (state === states.cells) {
-                if (line == 'BEGIN Cells') { prison_lines.shift(); continue; }
+                if (line == 'BEGIN Cells') { pointer++; continue; }
                 if (line == 'END') { state = states.scan; continue; }
                 if (line.search(/(BrickWall)|(ConcreteWall)|(Fence)|(PerimeterWall)/) !== -1) {
                   var regex_match = line.match(/(\d+) (\d+)/);
                   var x = regex_match[1], y = regex_match[2];
                   prison.p[[x,y]] = types.nothing + types.wall;
                 }
-                prison_lines.shift(); continue;
+                pointer++; continue;
               }
 
               if (state === states.tunnels) {
-                if (line == 'BEGIN Tunnels') { prison_lines.shift(); continue; }
+                if (line == 'BEGIN Tunnels') { pointer++; continue; }
                 if (line == 'END') { state = states.scan; continue; }
                 if (line.search(/Dug 1.0+/) !== -1) {
                   var regex_match = line.match(/(\d+) (\d+)/);
@@ -136,7 +137,7 @@
                   if (prison.p[[x,y]] === types.wall) { prison.p[[x,y]] = types.wall + types.tunnel; }
                   else { prison.p[[x,y]] = types.nothing + types.tunnel; }
                 }
-                prison_lines.shift(); continue;
+                pointer++; continue;
               }
             }
             // End
